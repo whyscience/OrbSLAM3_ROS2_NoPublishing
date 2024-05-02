@@ -26,6 +26,7 @@ public:
 private:
     void GrabImu(const ImuMsg::SharedPtr msg);
     void GrabImage(const sensor_msgs::msg::Image::SharedPtr msg);
+    cv::Mat GetImage(const ImageMsg::SharedPtr msg);
     void SyncWithImu();
 
     ORB_SLAM3::System* m_SLAM;
@@ -37,6 +38,9 @@ private:
     std::queue<ImuMsg::SharedPtr> imuBuf_;
     std::queue<ImageMsg::SharedPtr> imgBuf_;
     std::mutex bufMutex_;
+
+    bool bClahe_;
+    cv::Ptr<cv::CLAHE> clahe_ = cv::createCLAHE(3.0, cv::Size(8, 8));
 
     std::thread *syncThread_;
 };
