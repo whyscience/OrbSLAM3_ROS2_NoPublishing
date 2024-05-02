@@ -21,7 +21,7 @@ class MonocularInertialNode : public rclcpp::Node
 {
 public:
     MonocularInertialNode(ORB_SLAM3::System* pSLAM);
-    ~MonocularSlamNode();
+    ~MonocularInertialNode();
 
 private:
     void GrabImu(const ImuMsg::SharedPtr msg);
