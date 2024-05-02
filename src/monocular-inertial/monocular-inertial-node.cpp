@@ -55,9 +55,9 @@ cv::Mat MonocularInertialNode::GetImage(const ImageMsg::SharedPtr msg)
 
     try
     {
-        cv_ptr = cv_bridge::toCvCopy(msg);
+        cv_ptr = cv_bridge::toCvShare(msg, sensor_msgs::image_encodings::MONO8);
     }
-    catch (cv_bridge::Exception& e)
+    catch (cv_bridge::Exception &e)
     {
         RCLCPP_ERROR(this->get_logger(), "cv_bridge exception: %s", e.what());
     }
@@ -71,12 +71,11 @@ cv::Mat MonocularInertialNode::GetImage(const ImageMsg::SharedPtr msg)
         std::cerr << "Error image type" << std::endl;
         return cv_ptr->image.clone();
     }
-//    m_SLAM->TrackMonocular(cv_ptr->image, Utility::StampToSec(msg->header.stamp));
 }
 
 void MonocularInertialNode::SyncWithImu()
 {
-    const double maxTimeDiff = 0.25;  // Maximum allowed time difference for synchronization
+//    const double maxTimeDiff = 0.25;  // Maximum allowed time difference for synchronization
 
     while (1)
     {
@@ -107,10 +106,10 @@ void MonocularInertialNode::SyncWithImu()
             }
             bufMutex_.unlock();
 
-            if (bClahe_)
-            {
-                clahe_->apply(imageFrame, imageFrame);
-            }
+//            if (bClahe_)
+//            {
+//                clahe_->apply(imageFrame, imageFrame);
+//            }
 
             // Process the image and IMU data
             std::cout<<"one frame has been sent"<<std::endl;
