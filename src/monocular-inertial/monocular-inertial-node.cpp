@@ -21,9 +21,9 @@ MonocularInertialNode::MonocularInertialNode(ORB_SLAM3::System* pSLAM)
 
 MonocularInertialNode::~MonocularInertialNode()
 {
-    if (syncThread_->joinable()) {
-        syncThread_->join();
-    }
+//    if (syncThread_->joinable()) {
+    syncThread_->join();
+//    }
     delete syncThread_;
 
     m_SLAM->Shutdown();
