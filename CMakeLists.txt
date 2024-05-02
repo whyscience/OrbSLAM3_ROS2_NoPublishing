@@ -42,8 +42,8 @@ add_executable(mono
 ament_target_dependencies(mono rclcpp sensor_msgs cv_bridge ORB_SLAM3 Pangolin OpenCV)
 
 add_executable(mono-inertial
-  src/monocular/mono-inertial.cpp
-  src/monocular/monocular-inertial-node.cpp
+  src/monocular-inertial/mono-inertial.cpp
+  src/monocular-inertial/monocular-inertial-node.cpp
 )
 ament_target_dependencies(mono-inertial rclcpp sensor_msgs cv_bridge ORB_SLAM3 Pangolin OpenCV)
 
