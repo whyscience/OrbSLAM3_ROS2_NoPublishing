@@ -3,26 +3,28 @@
 #--------------------------------------------------------------------------------------------
 # Camera Parameters. Adjust them!
 #--------------------------------------------------------------------------------------------
-Camera.type: "KannalaBrandt8"
+Camera.type: "PinHole"
+
 # Camera calibration and distortion parameters (OpenCV) 
-Camera.fx: 190.978477 # 190.97847715128717
-Camera.fy: 190.973307 # 190.9733070521226
-Camera.cx: 254.931706 # 254.93170605935475
-Camera.cy: 256.897442 # 256.8974428996504
+Camera.fx: 326.2318 # 190.97847715128717
+Camera.fy: 328.74126 # 190.9733070521226
+Camera.cx: 648.77292 # 254.93170605935475
+Camera.cy: 519.80471 # 256.8974428996504
 
 # Equidistant distortion 0.0034823894022493434, 0.0007150348452162257, -0.0020532361418706202, 0.00020293673591811182
-#Camera.bFishEye: 1
-Camera.k1: 0.003482389402 # 0.0034823894022493434
-Camera.k2: 0.000715034845 # 0.0007150348452162257
-Camera.k3: -0.002053236141 # -0.0020532361418706202
-Camera.k4: 0.000202936736 # 0.00020293673591811182
-    
-# Camera resolution
-Camera.width: 512
-Camera.height: 512
+# Camera.bFishEye: 1
+# Camera.k1: 0.262921 # 0.0034823894022493434
+# Camera.k2: -0.135331 # 0.0007150348452162257
+# Camera.k3: 0.115645 # -0.0020532361418706202
+# Camera.k4: -0.078627 # 0.00020293673591811182
+
+Camera.k1: 0.262383
+Camera.k2: -0.953104
+Camera.p1: -0.005358
+Camera.p2: 0.002628
 
 # Camera frames per second 
-Camera.fps: 20.0
+Camera.fps: 30.0
 
 # Color order of the images (0: BGR, 1: RGB. It is ignored if images are grayscale)
 Camera.RGB: 1
