@@ -44,7 +44,7 @@ void MonocularInertialNode::GrabImage(const ImageMsg::SharedPtr msg)
     bufMutex_.unlock();
 }
 
-cv::Mat MonocularInertialNode::GetImage(const ImageMsg::SharedPtr& msg)
+cv::Mat MonocularInertialNode::GetImage(const ImageMsg::SharedPtr msg)
 {
     // Copy the ros image message to cv::Mat.
     cv_bridge::CvImageConstPtr cv_ptr;
