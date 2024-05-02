@@ -28,6 +28,7 @@ private:
     void GrabImage(const sensor_msgs::msg::Image::SharedPtr msg);
     void SyncWithImu();
 
+    ORB_SLAM3::System* m_SLAM;
     cv_bridge::CvImagePtr m_cvImPtr;
 
     rclcpp::Subscription<ImuMsg>::SharedPtr   subImu_;
