@@ -74,7 +74,7 @@ cv::Mat MonocularInertialNode::GetImage(const ImageMsg::SharedPtr msg)
 
 void MonocularInertialNode::SyncWithImu()
 {
-    const double maxTimeDiff = 0.01;  // Maximum allowed time difference for synchronization
+    const double maxTimeDiff = 0.25;  // Maximum allowed time difference for synchronization
 
     while (rclcpp::ok())
     {
