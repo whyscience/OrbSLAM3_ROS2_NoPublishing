@@ -32,16 +32,20 @@ MonocularInertialNode::~MonocularInertialNode()
 
 void MonocularInertialNode::GrabImu(const ImuMsg::SharedPtr msg)
 {
-    std::lock_guard<std::mutex> lock(bufMutex_);
+    bufMutex_.lock();
     imuBuf_.push(msg);
     bufMutex_.unlock();
 }
 
 void MonocularInertialNode::GrabImage(const ImageMsg::SharedPtr msg)
 {
-    std::lock_guard<std::mutex> lock(bufMutex_);
+    bufMutexImg_.lock();
+
+    if (!imgBuf_.empty())
+        imgBuf_.pop();
     imgBuf_.push(msg);
-    bufMutex_.unlock();
+
+    bufMutexImg_.unlock();
 }
 
 cv::Mat MonocularInertialNode::GetImage(const ImageMsg::SharedPtr msg)
@@ -58,15 +62,15 @@ cv::Mat MonocularInertialNode::GetImage(const ImageMsg::SharedPtr msg)
         RCLCPP_ERROR(this->get_logger(), "cv_bridge exception: %s", e.what());
     }
 
-//    if (cv_ptr->image.type() == 0)
-//    {
-//        return cv_ptr->image.clone();
-//    }
-//    else
-//    {
-//        std::cerr << "Error image type" << std::endl;
-//        return cv_ptr->image.clone();
-//    }
+    if (cv_ptr->image.type() == 0)
+    {
+        return cv_ptr->image.clone();
+    }
+    else
+    {
+        std::cerr << "Error image type" << std::endl;
+        return cv_ptr->image.clone();
+    }
 //    m_SLAM->TrackMonocular(cv_ptr->image, Utility::StampToSec(msg->header.stamp));
 }
 
@@ -74,7 +78,7 @@ void MonocularInertialNode::SyncWithImu()
 {
     const double maxTimeDiff = 0.25;  // Maximum allowed time difference for synchronization
 
-    while (rclcpp::ok())
+    while (1)
     {
         cv::Mat imageFrame;
         double tImage = 0;
@@ -82,24 +86,16 @@ void MonocularInertialNode::SyncWithImu()
         {
             tImage = Utility::StampToSec(imgBuf_.front()->header.stamp);
 
-            std::unique_lock<std::mutex> lock(bufMutex_);
-            // Synchronize IMU data to be close enough to the image timestamp
-            while (!imuBuf_.empty() && (Utility::StampToSec(imuBuf_.front()->header.stamp) < tImage - maxTimeDiff))
-            {
-                imuBuf_.pop();
-            }
-            lock.unlock();
+            bufMutexImg_.lock();
+            imageFrame = GetImage(imgBuf_.front());
+            imgBuf_.pop();
+            bufMutexImg_.unlock();
 
-            if (!imuBuf_.empty() && std::abs(Utility::StampToSec(imuBuf_.front()->header.stamp) - tImage) <= maxTimeDiff)
+            vector<ORB_SLAM3::IMU::Point> vImuMeas;
+            bufMutex_.lock();
+            if (!imuBuf_.empty())
             {
-                lock.lock();
-                imageFrame = GetImage(imgBuf_.front());
-                imgBuf_.pop();
-                lock.unlock();
-
-                vector<ORB_SLAM3::IMU::Point> vImuMeas;
-                lock.lock();
-                // Collect all IMU data up until the time of the image
+                vImuMeas.clear();
                 while (!imuBuf_.empty() && Utility::StampToSec(imuBuf_.front()->header.stamp) <= tImage)
                 {
                     double t = Utility::StampToSec(imuBuf_.front()->header.stamp);
@@ -108,20 +104,20 @@ void MonocularInertialNode::SyncWithImu()
                     vImuMeas.push_back(ORB_SLAM3::IMU::Point(acc, gyr, t));
                     imuBuf_.pop();
                 }
-                lock.unlock();
-
-                // If using CLAHE or other preprocessing
-                if (bClahe_)
-                {
-                    clahe_->apply(imageFrame, imageFrame);
-                }
-
-                // Process the image and IMU data
-                std::cout<<"one frame has been sent"<<std::endl;
-                m_SLAM->TrackMonocular(imageFrame, tImage, vImuMeas);
             }
-        }
+            bufMutex_.unlock();
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));  // Sleep to prevent spinning too fast
+            if (bClahe_)
+            {
+                clahe_->apply(imageFrame, imageFrame);
+            }
+
+            // Process the image and IMU data
+            std::cout<<"one frame has been sent"<<std::endl;
+            m_SLAM->TrackMonocular(imageFrame, tImage, vImuMeas);
+
+            std::chrono::milliseconds tSleep(1);
+            std::this_thread::sleep_for(tSleep);
+        }
     }
 }
