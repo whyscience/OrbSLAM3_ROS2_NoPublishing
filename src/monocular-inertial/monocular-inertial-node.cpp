@@ -67,6 +67,9 @@ cv::Mat MonocularInertialNode::GetImage(const ImageMsg::SharedPtr msg)
         std::cerr << "Error image type" << std::endl;
         return cv_ptr->image.clone();
     }
+
+    std::cout<<"one frame has been sent"<<std::endl;
+    m_SLAM->TrackMonocular(m_cvImPtr->image, Utility::StampToSec(msg->header.stamp));
 }
 
 void MonocularInertialNode::SyncWithImu()
