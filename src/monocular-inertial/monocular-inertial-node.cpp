@@ -32,9 +32,18 @@ MonocularInertialNode::~MonocularInertialNode()
 
 void MonocularInertialNode::GrabImu(const ImuMsg::SharedPtr msg)
 {
-    bufMutex_.lock();
-    imuBuf_.push(msg);
-    bufMutex_.unlock();
+    if (!std::isnan(msg->linear_acceleration.x) && !std::isnan(msg->linear_acceleration.y) &&
+        !std::isnan(msg->linear_acceleration.z) && !std::isnan(msg->angular_velocity.x) &&
+        !std::isnan(msg->angular_velocity.y) && !std::isnan(msg->angular_velocity.z))
+    {
+        bufMutex_.lock();
+        imuBuf_.push(msg);
+        bufMutex_.unlock();
+    }
+    else
+    {
+        RCLCPP_ERROR(this->get_logger(), "Invalid IMU data");
+    }
 }
 
 void MonocularInertialNode::GrabImage(const ImageMsg::SharedPtr msg)
