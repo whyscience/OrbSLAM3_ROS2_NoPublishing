@@ -86,7 +86,7 @@ void MonocularInertialNode::SyncWithImu()
 {
 //    const double maxTimeDiff = 0.25;  // Maximum allowed time difference for synchronization
 
-    while (1)
+while (1)
     {
         cv::Mat imageFrame;
         double tImage = 0;
@@ -101,24 +101,35 @@ void MonocularInertialNode::SyncWithImu()
 
             vector<ORB_SLAM3::IMU::Point> vImuMeas;
             bufMutex_.lock();
-            while (!imuBuf_.empty() && Utility::StampToSec(imuBuf_.front()->header.stamp) <= tImage)
+            if (!imuBuf_.empty())
             {
-                double t = Utility::StampToSec(imuBuf_.front()->header.stamp);
-                cv::Point3f acc(imuBuf_.front()->linear_acceleration.x, imuBuf_.front()->linear_acceleration.y, imuBuf_.front()->linear_acceleration.z);
-                cv::Point3f gyr(imuBuf_.front()->angular_velocity.x, imuBuf_.front()->angular_velocity.y, imuBuf_.front()->angular_velocity.z);
-                vImuMeas.push_back(ORB_SLAM3::IMU::Point(acc, gyr, t));
-                imuBuf_.pop();
+                vImuMeas.clear();
+                while (!imuBuf_.empty() && Utility::StampToSec(imuBuf_.front()->header.stamp) <= tImage)
+                {
+                    double t = Utility::StampToSec(imuBuf_.front()->header.stamp);
+                    cv::Point3f acc(imuBuf_.front()->linear_acceleration.x, imuBuf_.front()->linear_acceleration.y, imuBuf_.front()->linear_acceleration.z);
+                    cv::Point3f gyr(imuBuf_.front()->angular_velocity.x, imuBuf_.front()->angular_velocity.y, imuBuf_.front()->angular_velocity.z);
+                    vImuMeas.push_back(ORB_SLAM3::IMU::Point(acc, gyr, t));
+                    imuBuf_.pop();
+                }
             }
             bufMutex_.unlock();
 
             if (vImuMeas.empty())
             {
                 RCLCPP_WARN(this->get_logger(), "Empty IMU vector encountered. Skipping frame.");
-                continue;
+                continue; // Skip processing this frame
             }
 
-            std::cout<<"one frame has been sent"<<std::endl;
-            m_SLAM->TrackMonocular(imageFrame, tImage, vImuMeas);
+            try
+            {
+                m_SLAM->TrackMonocular(imageFrame, tImage, vImuMeas);
+                std::cout<<"one frame has been sent"<<std::endl;
+            }
+            catch (const std::exception& e)
+            {
+                RCLCPP_ERROR(this->get_logger(), "ORB_SLAM3 node processing error: %s", e.what())
+            }
 
             std::chrono::milliseconds tSleep(1);
             std::this_thread::sleep_for(tSleep);
