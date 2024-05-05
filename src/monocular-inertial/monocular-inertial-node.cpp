@@ -82,57 +82,44 @@ cv::Mat MonocularInertialNode::GetImage(const ImageMsg::SharedPtr msg)
     }
 }
 
-void MonocularInertialNode::SyncWithImu()
-{
-//    const double maxTimeDiff = 0.25;  // Maximum allowed time difference for synchronization
+void MonocularInertialNode::SyncWithImu() {
+    while (rclcpp::ok()) {
+        std::unique_lock<std::mutex> img_lock(bufMutexImg_, std::defer_lock);
+        std::unique_lock<std::mutex> imu_lock(bufMutex_, std::defer_lock);
 
-while (1)
-    {
-        cv::Mat imageFrame;
-        double tImage = 0;
-        if (!imgBuf_.empty() && !imuBuf_.empty())
-        {
-            tImage = Utility::StampToSec(imgBuf_.front()->header.stamp);
+        std::lock(img_lock, imu_lock);  // Lock both mutexes without deadlock
 
-            bufMutexImg_.lock();
-            imageFrame = GetImage(imgBuf_.front());
-            imgBuf_.pop();
-            bufMutexImg_.unlock();
+        if (!imgBuf_.empty() && !imuBuf_.empty()) {
+            auto imgPtr = imgBuf_.front();
+            double tImage = imgPtr->header.stamp.sec + imgPtr->header.stamp.nanosec * 1e-9;
 
+            // Collect all IMU data up to the timestamp of the image
             vector<ORB_SLAM3::IMU::Point> vImuMeas;
-            bufMutex_.lock();
-            if (!imuBuf_.empty())
-            {
-                vImuMeas.clear();
-                while (!imuBuf_.empty() && Utility::StampToSec(imuBuf_.front()->header.stamp) <= tImage)
-                {
-                    double t = Utility::StampToSec(imuBuf_.front()->header.stamp);
-                    cv::Point3f acc(imuBuf_.front()->linear_acceleration.x, imuBuf_.front()->linear_acceleration.y, imuBuf_.front()->linear_acceleration.z);
-                    cv::Point3f gyr(imuBuf_.front()->angular_velocity.x, imuBuf_.front()->angular_velocity.y, imuBuf_.front()->angular_velocity.z);
-                    vImuMeas.push_back(ORB_SLAM3::IMU::Point(acc, gyr, t));
-                    imuBuf_.pop();
-                }
-            }
-            bufMutex_.unlock();
-
-            if (vImuMeas.empty())
-            {
-                RCLCPP_WARN(this->get_logger(), "Empty IMU vector encountered. Skipping frame.");
-                continue; // Skip processing this frame
+            while (!imuBuf_.empty() && (imuBuf_.front()->header.stamp.sec + imuBuf_.front()->header.stamp.nanosec * 1e-9) <= tImage) {
+                auto imuMsg = imuBuf_.front();
+                imuBuf_.pop();
+                ORB_SLAM3::IMU::Point imuPoint{
+                    cv::Point3f(imuMsg->linear_acceleration.x, imuMsg->linear_acceleration.y, imuMsg->linear_acceleration.z),
+                    cv::Point3f(imuMsg->angular_velocity.x, imuMsg->angular_velocity.y, imuMsg->angular_velocity.z),
+                    imuMsg->header.stamp.sec + imuMsg->header.stamp.nanosec * 1e-9
+                };
+                vImuMeas.push_back(imuPoint);
             }
 
-            try
-            {
+            if (!vImuMeas.empty()) {
+                cv::Mat imageFrame = GetImage(imgPtr); // Assuming GetImage handles cv_bridge and ROS2 image message conversion
+                imgBuf_.pop();
                 m_SLAM->TrackMonocular(imageFrame, tImage, vImuMeas);
-                std::cout<<"one frame has been sent"<<std::endl;
+            } else {
+                RCLCPP_WARN(this->get_logger(), "No corresponding IMU data for image at %f", tImage);
             }
-            catch (const std::exception& e)
-            {
-                RCLCPP_ERROR(this->get_logger(), "ORB_SLAM3 node processing error: %s", e.what());
-            }
-
-            std::chrono::milliseconds tSleep(10);
-            std::this_thread::sleep_for(tSleep);
         }
+
+        img_lock.unlock();
+        imu_lock.unlock();
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 }
+
+
