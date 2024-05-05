@@ -82,44 +82,54 @@ cv::Mat MonocularInertialNode::GetImage(const ImageMsg::SharedPtr msg)
     }
 }
 
-void MonocularInertialNode::SyncWithImu() {
-    while (rclcpp::ok()) {
+void MonocularInertialNode::SyncWithImu()
+{
+    while (rclcpp::ok()) { // Use rclcpp::ok() to ensure clean shutdown handling
         std::unique_lock<std::mutex> img_lock(bufMutexImg_, std::defer_lock);
         std::unique_lock<std::mutex> imu_lock(bufMutex_, std::defer_lock);
 
-        std::lock(img_lock, imu_lock);  // Lock both mutexes without deadlock
+        std::lock(img_lock, imu_lock);  // Prevent deadlocks with scoped locking
 
         if (!imgBuf_.empty() && !imuBuf_.empty()) {
             auto imgPtr = imgBuf_.front();
-            double tImage = imgPtr->header.stamp.sec + imgPtr->header.stamp.nanosec * 1e-9;
+            double tImage = Utility::StampToSec(imgPtr->header.stamp);
+            double tImageshort = fmod(tImage, 100); // Only fractional part
+            imgBuf_.pop();  // Pop the image from the buffer to process
 
-            // Collect all IMU data up to the timestamp of the image
             vector<ORB_SLAM3::IMU::Point> vImuMeas;
-            while (!imuBuf_.empty() && (imuBuf_.front()->header.stamp.sec + imuBuf_.front()->header.stamp.nanosec * 1e-9) <= tImage) {
-                auto imuMsg = imuBuf_.front();
+            std::stringstream imu_data_stream; // Stream to log IMU data
+
+            while (!imuBuf_.empty() && Utility::StampToSec(imuBuf_.front()->header.stamp) <= tImage) {
+                auto imuPtr = imuBuf_.front();
+                double tIMU = Utility::StampToSec(imuPtr->header.stamp);
+                double tIMUshort = fmod(tIMU, 100);
                 imuBuf_.pop();
-                ORB_SLAM3::IMU::Point imuPoint{
-                    cv::Point3f(imuMsg->linear_acceleration.x, imuMsg->linear_acceleration.y, imuMsg->linear_acceleration.z),
-                    cv::Point3f(imuMsg->angular_velocity.x, imuMsg->angular_velocity.y, imuMsg->angular_velocity.z),
-                    imuMsg->header.stamp.sec + imuMsg->header.stamp.nanosec * 1e-9
-                };
-                vImuMeas.push_back(imuPoint);
+
+                cv::Point3f acc(imuPtr->linear_acceleration.x, imuPtr->linear_acceleration.y, imuPtr->linear_acceleration.z);
+                cv::Point3f gyr(imuPtr->angular_velocity.x, imuPtr->angular_velocity.y, imuPtr->angular_velocity.z);
+                vImuMeas.push_back(ORB_SLAM3::IMU::Point(acc, gyr, tIMU));  // Use full timestamp for processing
+
+                // Append each IMU data point to the stringstream
+                imu_data_stream << "IMU at " << std::fixed << std::setprecision(6) << tIMUshort << " - Acc: [" << acc << "], Gyr: [" << gyr << "]\n";
             }
 
-            if (!vImuMeas.empty()) {
-                cv::Mat imageFrame = GetImage(imgPtr); // Assuming GetImage handles cv_bridge and ROS2 image message conversion
-                imgBuf_.pop();
-                m_SLAM->TrackMonocular(imageFrame, tImage, vImuMeas);
-            } else {
-                RCLCPP_WARN(this->get_logger(), "No corresponding IMU data for image at %f", tImage);
+            if (vImuMeas.empty()) {
+                RCLCPP_WARN(this->get_logger(), "No IMU data available for the current frame at time %.6f.", tImage);
+                continue; // Skip processing this frame
+            }
+
+            cv::Mat imageFrame = GetImage(imgPtr);
+            try {
+                m_SLAM->TrackMonocular(imageFrame, tImage, vImuMeas); // Use full timestamp for processing
+                RCLCPP_INFO(this->get_logger(), "Image at %.6f processed with IMU data: \n%s", tImageshort, imu_data_stream.str().c_str());
+            } catch (const std::exception& e) {
+                RCLCPP_ERROR(this->get_logger(), "SLAM processing exception: %s", e.what());
             }
         }
 
         img_lock.unlock();
         imu_lock.unlock();
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        std::this_thread::sleep_for(std::chrono::milliseconds(1)); // Manage CPU usage
     }
 }
-
-
