@@ -42,7 +42,7 @@ void MonocularInertialNode::GrabImu(const ImuMsg::SharedPtr msg)
     }
     else
     {
-        RCLCPP_ERROR(this->get_logger(), "Invalid IMU data");
+        RCLCPP_ERROR(this->get_logger(), "Invalid IMU data - Rxd NaN");
     }
 }
 
@@ -128,10 +128,10 @@ while (1)
             }
             catch (const std::exception& e)
             {
-                RCLCPP_ERROR(this->get_logger(), "ORB_SLAM3 node processing error: %s", e.what())
+                RCLCPP_ERROR(this->get_logger(), "ORB_SLAM3 node processing error: %s", e.what());
             }
 
-            std::chrono::milliseconds tSleep(1);
+            std::chrono::milliseconds tSleep(10);
             std::this_thread::sleep_for(tSleep);
         }
     }
