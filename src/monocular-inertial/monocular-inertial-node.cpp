@@ -84,44 +84,45 @@ cv::Mat MonocularInertialNode::GetImage(const ImageMsg::SharedPtr msg)
 
 void MonocularInertialNode::SyncWithImu()
 {
-    while (rclcpp::ok()) { // Use rclcpp::ok() to ensure clean shutdown handling
+    while (rclcpp::ok()) {
         std::unique_lock<std::mutex> img_lock(bufMutexImg_, std::defer_lock);
         std::unique_lock<std::mutex> imu_lock(bufMutex_, std::defer_lock);
 
-        std::lock(img_lock, imu_lock);  // Prevent deadlocks with scoped locking
+        std::lock(img_lock, imu_lock);
 
         if (!imgBuf_.empty() && !imuBuf_.empty()) {
             auto imgPtr = imgBuf_.front();
             double tImage = Utility::StampToSec(imgPtr->header.stamp);
-            double tImageshort = fmod(tImage, 100); // Only fractional part
-            imgBuf_.pop();  // Pop the image from the buffer to process
+            // double tImageshort = fmod(tImage, 100);
 
+            cv::Mat imageFrame = GetImage(imgPtr); // Process image before popping
             vector<ORB_SLAM3::IMU::Point> vImuMeas;
-            std::stringstream imu_data_stream; // Stream to log IMU data
+            std::stringstream imu_data_stream;
 
             while (!imuBuf_.empty() && Utility::StampToSec(imuBuf_.front()->header.stamp) <= tImage) {
                 auto imuPtr = imuBuf_.front();
                 double tIMU = Utility::StampToSec(imuPtr->header.stamp);
-                double tIMUshort = fmod(tIMU, 100);
-                imuBuf_.pop();
+                // double tIMUshort = fmod(tIMU, 100);
 
+                imuBuf_.pop();
                 cv::Point3f acc(imuPtr->linear_acceleration.x, imuPtr->linear_acceleration.y, imuPtr->linear_acceleration.z);
                 cv::Point3f gyr(imuPtr->angular_velocity.x, imuPtr->angular_velocity.y, imuPtr->angular_velocity.z);
-                vImuMeas.push_back(ORB_SLAM3::IMU::Point(acc, gyr, tIMU));  // Use full timestamp for processing
+                vImuMeas.push_back(ORB_SLAM3::IMU::Point(acc, gyr, tIMU));
 
-                // Append each IMU data point to the stringstream
-                imu_data_stream << "IMU at " << std::fixed << std::setprecision(6) << tIMUshort << " - Acc: [" << acc << "], Gyr: [" << gyr << "]\n";
+                // Debug info
+                // imu_data_stream << "IMU at " << std::fixed << std::setprecision(6) << tIMUshort << " - Acc: [" << acc << "], Gyr: [" << gyr << "]\n";
             }
 
+            imgBuf_.pop(); // Safely pop the image from the buffer here
+
             if (vImuMeas.empty()) {
-                RCLCPP_WARN(this->get_logger(), "No IMU data available for the current frame at time %.6f.", tImage);
+                RCLCPP_WARN(this->get_logger(), "No valid IMU data available for the current frame at time %.6f.", tImage);
                 continue; // Skip processing this frame
             }
 
-            cv::Mat imageFrame = GetImage(imgPtr);
             try {
-                m_SLAM->TrackMonocular(imageFrame, tImage, vImuMeas); // Use full timestamp for processing
-                RCLCPP_INFO(this->get_logger(), "Image at %.6f processed with IMU data: \n%s", tImageshort, imu_data_stream.str().c_str());
+                m_SLAM->TrackMonocular(imageFrame, tImage, vImuMeas);
+                // RCLCPP_INFO(this->get_logger(), "Image at %.6f processed with IMU data: \n%s", tImageshort, imu_data_stream.str().c_str());
             } catch (const std::exception& e) {
                 RCLCPP_ERROR(this->get_logger(), "SLAM processing exception: %s", e.what());
             }
@@ -130,6 +131,7 @@ void MonocularInertialNode::SyncWithImu()
         img_lock.unlock();
         imu_lock.unlock();
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(1)); // Manage CPU usage
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 }
+
